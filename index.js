@@ -10,6 +10,7 @@ var baseDir = process.argv[2],
     cheerio = require('cheerio'),
     recursive_readdir = require('recursive-readdir'),
     csv = require('csv'),
+    officegen = require('officegen'),
     htmlFileExpr = /\.html?$/i;
 
 if (!baseDir) {
@@ -95,6 +96,56 @@ function writeCSV(results) {
   });
 }
 
+function writeExcel(results) {
+  return Q.fcall(function() {
+    var xlsx = officegen('xlsx'),
+        columns = [
+          'directory',
+          'title',
+          'keywords',
+          'description',
+          'URL'
+        ],
+        rows = results.map(function(result) {
+          return [
+            result.directory,
+            result.title,
+            result.keywords,
+            result.description,
+            result.URL
+          ];
+        }),
+        sheet,
+        row,
+        i,
+        j,
+        colCount = columns.length,
+        rowCount = rows.length,
+        out;
+
+    xlsx.on('error', function(err) { throw err; });
+    sheet = xlsx.makeNewSheet();
+    sheet.name = 'HTML files';
+
+    sheet.data[0] = [];
+    for (j = 0; j < colCount; j++) {
+      sheet.data[0][j] = columns[j];
+    }
+
+    for (i = 0; i < rowCount; i++) {
+      row = rows[i];
+      sheet.data[i + 1] = [];
+      for (j = 0; j < colCount; j++) {
+        sheet.data[i + 1][j] = row[j];
+      }
+    }
+
+    out = fs.createWriteStream(outFile);
+    out.on('error', function(err) { throw err; });
+    xlsx.generate(out);
+  });
+}
+
 if (baseDir.substr(-1) === '/' && baseDir !== '/') {
   baseDir = baseDir.substr(0, baseDir.length - 1);
 }
@@ -109,5 +160,11 @@ Q.nfcall(recursive_readdir, baseDir)
 
   return Q.all(promises);
 })
-.then(writeCSV)
+.then(function(results) {
+  if (outFile.substr(-5) === '.xlsx') {
+    return writeExcel(results);
+  } else {
+    return writeCSV(results);
+  }
+})
 .done();

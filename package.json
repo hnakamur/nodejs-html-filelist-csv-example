@@ -10,7 +10,8 @@
     "cheerio": "^0.13.1",
     "jschardet": "^1.1.0",
     "iconv": "^2.0.7",
-    "csv": "^0.3.7"
+    "csv": "^0.3.7",
+    "officegen": "^0.2.8"
   },
   "devDependencies": {},
   "scripts": {
