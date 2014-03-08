@@ -26,8 +26,13 @@ if (!outFile) {
   throw new Error('A output file must be specified!');
 }
 
-function recursiveReadDir(baseDir, callback) {
+function recursiveReadDir(baseDir, filter, callback) {
   var files = [];
+
+  if (callback === undefined) {
+    callback = filter;
+    filter = undefined;
+  }
 
   scandir.on('file', function(file, stats) {
     files.push(file);
@@ -42,7 +47,8 @@ function recursiveReadDir(baseDir, callback) {
   });
 
   scandir.scan({
-    dir: baseDir
+    dir: baseDir,
+    filter: filter
   });
 }
 
@@ -169,13 +175,10 @@ function writeExcel(results) {
 if (baseDir.substr(-1) === '/' && baseDir !== '/') {
   baseDir = baseDir.substr(0, baseDir.length - 1);
 }
-Q.nfcall(recursiveReadDir, baseDir)
-.then(function(files) {
-  var htmlFiles, promises;
+Q.nfcall(recursiveReadDir, baseDir, /\.html?/i)
+.then(function(htmlFiles) {
+  var promises;
 
-  htmlFiles = _.filter(files, function(file) {
-    return htmlFileExpr.test(file);
-  });
   promises = _.map(htmlFiles, function(file) {
     return readHtml(file);
   });
