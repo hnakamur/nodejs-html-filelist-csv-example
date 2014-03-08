@@ -8,8 +8,8 @@ var baseDir = process.argv[2],
     jschardet = require('jschardet'),
     Iconv = require('iconv').Iconv,
     cheerio = require('cheerio'),
-    recursive_readdir = require('recursive-readdir'),
     csv = require('csv'),
+    scandir = require('scandir').create(),
     officegen = require('officegen'),
     htmlFileExpr = /\.html?$/i;
 
@@ -24,6 +24,26 @@ if (!baseURL) {
 }
 if (!outFile) {
   throw new Error('A output file must be specified!');
+}
+
+function recursiveReadDir(baseDir, callback) {
+  var files = [];
+
+  scandir.on('file', function(file, stats) {
+    files.push(file);
+  });
+
+  scandir.on('error', function(err) {
+    callback(err, null);
+  });
+
+  scandir.on('end', function() {
+    callback(null, files);
+  });
+
+  scandir.scan({
+    dir: baseDir
+  });
 }
 
 function readHtml(filename) {
@@ -98,32 +118,30 @@ function writeCSV(results) {
 
 function writeExcel(results) {
   return Q.fcall(function() {
-    var xlsx = officegen('xlsx'),
-        columns = [
-          'directory',
-          'title',
-          'keywords',
-          'description',
-          'URL'
-        ],
-        rows = results.map(function(result) {
-          return [
-            result.directory,
-            result.title,
-            result.keywords,
-            result.description,
-            result.URL
-          ];
-        }),
-        sheet,
-        row,
-        i,
-        j,
-        colCount = columns.length,
-        rowCount = rows.length,
-        out;
+    var xlsx, columns, rows, sheet, row, i, j, colCount, rowCount, out;
+    xlsx = officegen('xlsx');
+    columns = [
+      'directory',
+      'title',
+      'keywords',
+      'description',
+      'URL'
+    ];
+    rows = results.map(function(result) {
+      return [
+        result.directory,
+        result.title,
+        result.keywords,
+        result.description,
+        result.URL
+      ];
+    });
+    colCount = columns.length;
+    rowCount = rows.length;
 
-    xlsx.on('error', function(err) { throw err; });
+    xlsx.on('error', function(err) {
+      throw err;
+    });
     sheet = xlsx.makeNewSheet();
     sheet.name = 'HTML files';
 
@@ -141,7 +159,9 @@ function writeExcel(results) {
     }
 
     out = fs.createWriteStream(outFile);
-    out.on('error', function(err) { throw err; });
+    out.on('error', function(err) {
+      throw err;
+    });
     xlsx.generate(out);
   });
 }
@@ -149,14 +169,16 @@ function writeExcel(results) {
 if (baseDir.substr(-1) === '/' && baseDir !== '/') {
   baseDir = baseDir.substr(0, baseDir.length - 1);
 }
-Q.nfcall(recursive_readdir, baseDir)
+Q.nfcall(recursiveReadDir, baseDir)
 .then(function(files) {
-  var htmlFiles = _.filter(files, function(file) {
-        return htmlFileExpr.test(file);
-      }),
-      promises = _.map(htmlFiles, function(file) {
-        return readHtml(file);
-      });
+  var htmlFiles, promises;
+
+  htmlFiles = _.filter(files, function(file) {
+    return htmlFileExpr.test(file);
+  });
+  promises = _.map(htmlFiles, function(file) {
+    return readHtml(file);
+  });
 
   return Q.all(promises);
 })
